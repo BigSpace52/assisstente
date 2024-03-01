@@ -1,0 +1,51 @@
+const functions = require('firebase-functions');
+const axios = require('axios');
+
+// Função para encaminhar a pergunta para a Assistente da OpenAI
+async function askOpenAI(question) {
+  try {
+    const response = await axios.post('https://api.openai.com/v1/engines/davinci/completions', {
+      prompt: question,
+      max_tokens: 50,
+      temperature: 0.7,
+      api_key: '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'
+    });
+
+    return response.data.choices[0].text.trim();
+  } catch (error) {
+    console.error('Erro ao enviar pergunta para a Assistente da OpenAI:', error);
+    return 'Desculpe, ocorreu um erro ao processar sua pergunta.';
+  }
+}
+
+// Função de Firebase para encaminhar a pergunta da Assistente do Google e retornar a resposta em áudio
+exports.askGPT = functions.https.onRequest(async (req, res) => {
+  const question = req.body.queryResult.queryText;
+  
+  try {
+    // Encaminha a pergunta para a Assistente da OpenAI
+    const answer = await askOpenAI(question);
+
+    // Formata a resposta em áudio
+    const response = {
+      fulfillmentText: answer,
+      fulfillmentMessages: [
+        {
+          platform: 'ACTIONS_ON_GOOGLE',
+          simpleResponses: {
+            simpleResponses: [
+              {
+                textToSpeech: answer
+              }
+            ]
+          }
+        }
+      ]
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Erro ao processar pergunta:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
